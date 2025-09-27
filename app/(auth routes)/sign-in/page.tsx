@@ -54,11 +54,17 @@ const SignInPage = () => {
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         const axiosError = error as AxiosError<{ message?: string; error?: string }>;
-        const responseData = axiosError.response?.data;
         if (axiosError.response?.status === 400) {
           setError('Перевірте email та пароль і спробуйте ще раз.');
           return;
         }
+
+        if (axiosError.response?.status === 401) {
+          setError('Такого акаунта не знайдено або пароль невірний. Зареєструйтесь або перевірте дані.');
+          return;
+        }
+
+        const responseData = axiosError.response?.data;
         const message =
           responseData?.message ||
           responseData?.error ||
