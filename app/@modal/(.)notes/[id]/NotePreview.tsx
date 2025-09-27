@@ -64,9 +64,7 @@ const NotePreview = ({ noteId }: NotePreviewProps) => {
             <span className={css.tag}>{note.tag}</span>
           </div>
           <p className={css.content}>{note.content}</p>
-          <p className={css.date}>
-            {new Date(note.createdAt).toLocaleString()}
-          </p>
+          <p className={css.date}>{new Date(note.createdAt).toLocaleString()}</p>
         </div>
       </div>
     </Modal>
