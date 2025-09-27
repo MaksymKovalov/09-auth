@@ -1,0 +1,26 @@
+.input {
+  padding: 12px 16px;
+  border: 2px solid #e1e5e9;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+  max-width: 300px;
+  transition: border-color 0.2s ease;
+  font-family: inherit;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.input::placeholder {
+  color: #adb5bd;
+}
+
+@media (max-width: 768px) {
+  .input {
+    max-width: none;
+    width: 100%;
+  }
+}
