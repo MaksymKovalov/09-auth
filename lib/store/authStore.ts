@@ -10,7 +10,7 @@ export type AuthState = {
 
 type SetState = StoreApi<AuthState>['setState'];
 
-export const useAuthStore = create<AuthState>((set: SetState) => ({
+export const useAuthStore = create<AuthState>()((set: SetState) => ({
   user: null,
   isAuthenticated: false,
   setUser: (user: User | null) =>

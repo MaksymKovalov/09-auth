@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
@@ -26,6 +27,17 @@ const ProfilePage = async () => {
           </Link>
         </div>
 
+        <div className={css.avatarWrapper}>
+          <Image
+            src={user.avatar}
+            alt={`${user.username} avatar`}
+            width={120}
+            height={120}
+            className={css.avatar}
+            priority
+          />
+        </div>
+
         <div className={css.profileInfo}>
           <p>
             <strong>Email:</strong> {user.email}
@@ -33,14 +45,6 @@ const ProfilePage = async () => {
           <p>
             <strong>Username:</strong> {user.username}
           </p>
-          <p>
-            <strong>Member since:</strong> {new Date(user.createdAt).toLocaleDateString()}
-          </p>
-          {user.updatedAt && (
-            <p>
-              <strong>Last updated:</strong> {new Date(user.updatedAt).toLocaleDateString()}
-            </p>
-          )}
         </div>
       </section>
     </main>

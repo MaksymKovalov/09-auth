@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { getCurrentUser, getSession } from '@/lib/api/clientApi';
+import { getSession } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
 
 const PUBLIC_ONLY_ROUTES = ['/sign-in', '/sign-up'];
@@ -38,9 +38,9 @@ const AuthProviderInner = ({ children }: AuthProviderProps) => {
 
     const checkAuth = async () => {
       try {
-        const hasSession = await getSession();
+        const sessionUser = await getSession();
 
-        if (!hasSession) {
+        if (!sessionUser) {
           clearIsAuthenticated();
 
           if (isProtectedRoute(pathname)) {
@@ -58,13 +58,12 @@ const AuthProviderInner = ({ children }: AuthProviderProps) => {
           return;
         }
 
-        const user = await getCurrentUser();
-        if (ignore) return;
+  if (ignore) return;
 
-        setUser(user);
+  setUser(sessionUser);
 
         if (isPublicOnlyRoute(pathname)) {
-          const target = sanitizeRedirectTarget(redirectTargetRef.current) ?? '/notes/filter/All';
+          const target = sanitizeRedirectTarget(redirectTargetRef.current) ?? '/profile';
           router.replace(target);
         }
       } catch {

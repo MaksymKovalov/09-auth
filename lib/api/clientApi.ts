@@ -1,7 +1,8 @@
 import type { AxiosRequestConfig } from 'axios';
 import { api } from './api';
 import type { Note, CreateNoteRequest } from '@/types/note';
-import type { AuthCredentials, UpdateUserRequest, User } from '@/types/user';
+import type { AuthCredentials, UpdateUserRequest } from '@/types/auth';
+import type { User } from '@/types/user';
 
 export interface FetchNotesParams {
   page?: number;
@@ -109,9 +110,13 @@ export const logout = async () => {
 };
 
 export const getSession = async () => {
-  const response = await api.get<{ success: boolean }>('/auth/session');
+  const response = await api.get<User | null>('/auth/session');
 
-  return Boolean(response.data?.success);
+  if (!response.data) {
+    return null;
+  }
+
+  return response.data;
 };
 
 export const getCurrentUser = async () => {

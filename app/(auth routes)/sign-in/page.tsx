@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { isAxiosError, type AxiosError } from 'axios';
 import { login } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
-import type { AuthCredentials } from '@/types/user';
+import type { AuthCredentials } from '@/types/auth';
 import css from './page.module.css';
 
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value);
@@ -40,7 +40,7 @@ const SignInPage = () => {
       return;
     }
 
-    const payload: AuthCredentials = { email, password };
+  const payload: AuthCredentials = { email, password };
 
     try {
       setIsSubmitting(true);
@@ -49,7 +49,7 @@ const SignInPage = () => {
 
       const redirectTarget = searchParams?.get('redirect');
       const destination =
-        redirectTarget && redirectTarget.startsWith('/') ? redirectTarget : '/notes/filter/All';
+        redirectTarget && redirectTarget.startsWith('/') ? redirectTarget : '/profile';
       router.replace(destination);
     } catch (error: unknown) {
       if (isAxiosError(error)) {

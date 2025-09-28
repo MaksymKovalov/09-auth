@@ -8,7 +8,6 @@ import { logErrorResponse } from '../../_utils/utils';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-
     const apiRes = await api.post('auth/register', body);
 
     const cookieStore = await cookies();

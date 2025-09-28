@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { isAxiosError, type AxiosError } from 'axios';
 import { updateUser } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
-import type { User, UpdateUserRequest } from '@/types/user';
+import type { UpdateUserRequest } from '@/types/auth';
+import type { User } from '@/types/user';
 import css from './page.module.css';
 
 type Props = {

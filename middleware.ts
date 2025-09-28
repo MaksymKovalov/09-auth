@@ -20,7 +20,22 @@ const sanitizeRedirectTarget = (target: string | null) => {
   return target.startsWith('/') ? target : null;
 };
 
-export function middleware(request: NextRequest) {
+const extractSetCookies = (headers: Headers): string[] => {
+  if ('getSetCookie' in headers && typeof (headers as Headers & { getSetCookie(): string[] }).getSetCookie === 'function') {
+    return (headers as Headers & { getSetCookie(): string[] }).getSetCookie();
+  }
+
+  const setCookieHeader = headers.get('set-cookie');
+  return setCookieHeader ? [setCookieHeader] : [];
+};
+
+const appendCookies = (response: NextResponse, cookies: string[]) => {
+  cookies.forEach((cookie) => {
+    response.headers.append('set-cookie', cookie);
+  });
+};
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
@@ -34,24 +49,53 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasAccessToken = request.cookies.has('accessToken');
+  let hasAccessToken = request.cookies.has('accessToken');
+  const hasRefreshToken = request.cookies.has('refreshToken');
+  let refreshedCookies: string[] = [];
+
+  if (!hasAccessToken && hasRefreshToken) {
+    try {
+      const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
+        headers: {
+          cookie: request.headers.get('cookie') ?? '',
+        },
+        cache: 'no-store',
+      });
+
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json().catch(() => null);
+        if (sessionData) {
+          hasAccessToken = true;
+          refreshedCookies = extractSetCookies(sessionResponse.headers);
+        }
+      }
+    } catch {
+      // Ignore refresh errors and proceed with existing cookies
+    }
+  }
 
   if (!hasAccessToken && isProtectedPath(pathname)) {
     const signInUrl = request.nextUrl.clone();
     signInUrl.pathname = '/sign-in';
     signInUrl.searchParams.set('redirect', buildRedirectValue(request));
-    return NextResponse.redirect(signInUrl);
+    const redirectResponse = NextResponse.redirect(signInUrl);
+    appendCookies(redirectResponse, refreshedCookies);
+    return redirectResponse;
   }
 
   if (hasAccessToken && isPublicOnlyPath(pathname)) {
     const redirectParam = sanitizeRedirectTarget(request.nextUrl.searchParams.get('redirect'));
-    const destination = redirectParam ?? '/notes';
-    return NextResponse.redirect(new URL(destination, request.url));
+    const destination = redirectParam ?? '/profile';
+    const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
+    appendCookies(redirectResponse, refreshedCookies);
+    return redirectResponse;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  appendCookies(response, refreshedCookies);
+  return response;
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)'],
+  matcher: ['/profile/:path*', '/notes/:path*', '/sign-in', '/sign-up'],
 };

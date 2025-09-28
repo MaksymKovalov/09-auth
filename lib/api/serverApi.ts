@@ -10,7 +10,8 @@ import {
   type FetchNotesParams,
 } from './clientApi';
 import type { CreateNoteRequest } from '@/types/note';
-import type { UpdateUserRequest, User } from '@/types/user';
+import type { UpdateUserRequest } from '@/types/auth';
+import type { User } from '@/types/user';
 
 const mergeConfigs = async (config?: AxiosRequestConfig): Promise<AxiosRequestConfig> => {
   const cookieStore = await cookies();
@@ -42,11 +43,8 @@ export const updateNoteServer = async (id: string, payload: CreateNoteRequest) =
 export const deleteNoteServer = async (id: string) =>
   deleteNoteRequest(id, await mergeConfigs());
 
-export const getSessionServer = async () => {
-  const response = await api.get<{ success: boolean }>('/auth/session', await mergeConfigs());
-
-  return Boolean(response.data?.success);
-};
+export const getSessionServer = async () =>
+  api.get<{ success: boolean }>('/auth/session', await mergeConfigs());
 
 export const getCurrentUserServer = async () => {
   try {
