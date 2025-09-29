@@ -90,7 +90,6 @@ export async function middleware(request: NextRequest) {
   const hasRefreshToken = request.cookies.has('refreshToken');
   let refreshedCookies: string[] = [];
   let refreshedCookieHeader: string | null = null;
-  let sessionValid = false;
 
   const updateRequestCookies = (cookieHeader: string) => {
     requestCookieHeader = cookieHeader;
@@ -127,7 +126,6 @@ export async function middleware(request: NextRequest) {
         const sessionData = await sessionResponse.json().catch(() => null);
         if (sessionData) {
           hasAccessToken = true;
-          sessionValid = true;
           refreshedCookies = setCookies;
           if (setCookies.length) {
             const mergedHeader = mergeCookieHeader(requestCookieHeader, setCookies);
@@ -136,19 +134,16 @@ export async function middleware(request: NextRequest) {
           }
         } else {
           hasAccessToken = false;
-          sessionValid = false;
           refreshedCookies = setCookies;
           dropAuthCookiesFromRequest();
         }
       } else {
-        hasAccessToken = false;
-        sessionValid = false;
+  hasAccessToken = false;
         refreshedCookies = setCookies;
         dropAuthCookiesFromRequest();
       }
     } catch {
-      hasAccessToken = false;
-      sessionValid = false;
+  hasAccessToken = false;
       dropAuthCookiesFromRequest();
     }
   }
@@ -162,7 +157,7 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
-  if (sessionValid && isPublicOnlyPath(pathname)) {
+  if (hasAccessToken && isPublicOnlyPath(pathname)) {
     const redirectParam = sanitizeRedirectTarget(request.nextUrl.searchParams.get('redirect'));
     const destination = redirectParam ?? '/profile';
     const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
