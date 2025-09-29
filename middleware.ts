@@ -61,9 +61,19 @@ const mergeCookieHeader = (existingCookie: string, refreshedCookies: string[]): 
     .join('; ');
 };
 
+const removeAuthCookies = (cookieHeader: string): string =>
+  cookieHeader
+    .split(';')
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .filter((pair) => !pair.startsWith('accessToken=') && !pair.startsWith('refreshToken='))
+    .join('; ');
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const requestHeaders = new Headers(request.headers);
+  let requestCookieHeader = request.headers.get('cookie') ?? '';
+  let requestHeadersUpdated = false;
 
   if (
     pathname.startsWith('/_next') ||
@@ -80,33 +90,66 @@ export async function middleware(request: NextRequest) {
   const hasRefreshToken = request.cookies.has('refreshToken');
   let refreshedCookies: string[] = [];
   let refreshedCookieHeader: string | null = null;
+  let sessionValid = false;
 
-  if (!hasAccessToken && hasRefreshToken) {
+  const updateRequestCookies = (cookieHeader: string) => {
+    requestCookieHeader = cookieHeader;
+    if (cookieHeader) {
+      requestHeaders.set('cookie', cookieHeader);
+    } else {
+      requestHeaders.delete('cookie');
+    }
+    requestHeadersUpdated = true;
+  };
+
+  const dropAuthCookiesFromRequest = () => {
+    if (!requestCookieHeader) return;
+    const cleaned = removeAuthCookies(requestCookieHeader);
+    if (cleaned === requestCookieHeader) return;
+    updateRequestCookies(cleaned);
+  };
+
+  const shouldCheckSession =
+    (isPublicOnlyPath(pathname) && (hasAccessToken || hasRefreshToken)) || (!hasAccessToken && hasRefreshToken);
+
+  if (shouldCheckSession) {
     try {
       const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
         headers: {
-          cookie: request.headers.get('cookie') ?? '',
+          cookie: requestCookieHeader,
         },
         cache: 'no-store',
       });
+
+      const setCookies = extractSetCookies(sessionResponse.headers);
 
       if (sessionResponse.ok) {
         const sessionData = await sessionResponse.json().catch(() => null);
         if (sessionData) {
           hasAccessToken = true;
+          sessionValid = true;
+          refreshedCookies = setCookies;
+          if (setCookies.length) {
+            const mergedHeader = mergeCookieHeader(requestCookieHeader, setCookies);
+            refreshedCookieHeader = mergedHeader;
+            updateRequestCookies(mergedHeader);
+          }
+        } else {
+          hasAccessToken = false;
+          sessionValid = false;
+          refreshedCookies = setCookies;
+          dropAuthCookiesFromRequest();
         }
-        refreshedCookies = extractSetCookies(sessionResponse.headers);
+      } else {
+        hasAccessToken = false;
+        sessionValid = false;
+        refreshedCookies = setCookies;
+        dropAuthCookiesFromRequest();
       }
     } catch {
-      // Ignore refresh errors and proceed with existing cookies
-    }
-
-    if (refreshedCookies.length) {
-      const existingCookieHeader = request.headers.get('cookie') ?? '';
-      refreshedCookieHeader = mergeCookieHeader(existingCookieHeader, refreshedCookies);
-      if (refreshedCookieHeader) {
-        requestHeaders.set('cookie', refreshedCookieHeader);
-      }
+      hasAccessToken = false;
+      sessionValid = false;
+      dropAuthCookiesFromRequest();
     }
   }
 
@@ -119,7 +162,7 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
-  if (hasAccessToken && isPublicOnlyPath(pathname)) {
+  if (sessionValid && isPublicOnlyPath(pathname)) {
     const redirectParam = sanitizeRedirectTarget(request.nextUrl.searchParams.get('redirect'));
     const destination = redirectParam ?? '/profile';
     const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
@@ -127,8 +170,12 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
+  if (refreshedCookieHeader && !requestHeadersUpdated) {
+    updateRequestCookies(refreshedCookieHeader);
+  }
+
   const response = NextResponse.next({
-    request: refreshedCookieHeader ? { headers: requestHeaders } : undefined,
+    request: requestHeadersUpdated ? { headers: requestHeaders } : undefined,
   });
   appendCookies(response, refreshedCookies);
   return response;
