@@ -103,7 +103,7 @@ export async function middleware(request: NextRequest) {
     hasRefreshToken = parsedState.hasRefreshToken;
   };
 
-  if (!hasAccessToken && hasRefreshToken) {
+  if (hasRefreshToken && (!hasAccessToken || isAuthPage(pathname))) {
     try {
       const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
         headers: {
