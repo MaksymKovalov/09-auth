@@ -134,7 +134,7 @@ export async function middleware(request: NextRequest) {
     enqueueClearAuthCookies();
   };
 
-  if (hasRefreshToken && (!hasAccessToken || isAuthPage(pathname))) {
+  if (hasRefreshToken && (!hasAccessToken || isAuthPage(pathname) || isProtectedPath(pathname))) {
     try {
       const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
         headers: {
