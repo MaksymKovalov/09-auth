@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { debugCookies, isAuthDebugEnabled, logAuthDebug } from '@/lib/utils/authDebug';
 
 const PUBLIC_ONLY_ROUTES = ['/sign-in', '/sign-up'];
 const PROTECTED_PREFIXES = ['/notes', '/profile'];
@@ -65,6 +66,13 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const requestHeaders = new Headers(request.headers);
 
+  if (isAuthDebugEnabled) {
+    logAuthDebug('middleware:start', {
+      pathname,
+      cookies: debugCookies(request.headers.get('cookie')),
+    });
+  }
+
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
@@ -90,6 +98,14 @@ export async function middleware(request: NextRequest) {
         cache: 'no-store',
       });
 
+      if (isAuthDebugEnabled) {
+        logAuthDebug('middleware:refresh-response', {
+          status: sessionResponse.status,
+          ok: sessionResponse.ok,
+          setCookie: sessionResponse.headers.get('set-cookie')?.split('\n').length ?? 0,
+        });
+      }
+
       if (sessionResponse.ok) {
         const sessionData = await sessionResponse.json().catch(() => null);
         if (sessionData) {
@@ -99,6 +115,11 @@ export async function middleware(request: NextRequest) {
       }
     } catch {
       // Ignore refresh errors and proceed with existing cookies
+      if (isAuthDebugEnabled) {
+        logAuthDebug('middleware:refresh-error', {
+          message: 'session fetch failed',
+        });
+      }
     }
 
     if (refreshedCookies.length) {
@@ -106,6 +127,11 @@ export async function middleware(request: NextRequest) {
       refreshedCookieHeader = mergeCookieHeader(existingCookieHeader, refreshedCookies);
       if (refreshedCookieHeader) {
         requestHeaders.set('cookie', refreshedCookieHeader);
+      }
+      if (isAuthDebugEnabled) {
+        logAuthDebug('middleware:merged-cookies', {
+          merged: debugCookies(refreshedCookieHeader),
+        });
       }
     }
   }
@@ -116,6 +142,13 @@ export async function middleware(request: NextRequest) {
     signInUrl.searchParams.set('redirect', buildRedirectValue(request));
     const redirectResponse = NextResponse.redirect(signInUrl);
     appendCookies(redirectResponse, refreshedCookies);
+    if (isAuthDebugEnabled) {
+      logAuthDebug('middleware:redirect-sign-in', {
+        pathname,
+        hasRefreshToken,
+        refreshedCount: refreshedCookies.length,
+      });
+    }
     return redirectResponse;
   }
 
@@ -124,6 +157,13 @@ export async function middleware(request: NextRequest) {
     const destination = redirectParam ?? '/profile';
     const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
     appendCookies(redirectResponse, refreshedCookies);
+    if (isAuthDebugEnabled) {
+      logAuthDebug('middleware:redirect-private', {
+        pathname,
+        destination,
+        refreshedCount: refreshedCookies.length,
+      });
+    }
     return redirectResponse;
   }
 
@@ -131,6 +171,17 @@ export async function middleware(request: NextRequest) {
     request: refreshedCookieHeader ? { headers: requestHeaders } : undefined,
   });
   appendCookies(response, refreshedCookies);
+  if (isAuthDebugEnabled) {
+    logAuthDebug('middleware:allow', {
+      pathname,
+      hasAccessToken,
+      hasRefreshToken,
+      forwardedCookie: refreshedCookieHeader
+        ? debugCookies(refreshedCookieHeader)
+        : debugCookies(request.headers.get('cookie')),
+      refreshedCount: refreshedCookies.length,
+    });
+  }
   return response;
 }
 
