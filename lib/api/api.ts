@@ -21,7 +21,7 @@ const getServerBaseUrl = () => {
   return `http://localhost:${port}/api`;
 };
 
-const baseURL = typeof window === 'undefined' ? getServerBaseUrl() : '/api';
+const baseURL = typeof window === 'undefined' ? getServerBaseUrl() : process.env.NEXT_PUBLIC_API_URL ? `${normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL)}/api` : '/api';
 
 export const api = axios.create({
   baseURL,

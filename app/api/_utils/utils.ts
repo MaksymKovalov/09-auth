@@ -7,6 +7,8 @@ const resolveIsSecure = (request: NextRequest) => {
   return proto === 'https' || proto === 'https:';
 };
 
+const resolveSameSite = (secure: boolean): 'lax' | 'strict' | 'none' => (secure ? 'none' : 'lax');
+
 type CookieOptions = {
   path?: string;
   expires?: Date;
@@ -27,8 +29,6 @@ const buildCookieOptions = (request: NextRequest, parsed: Record<string, string 
   expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
   maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : undefined,
   httpOnly: true,
-  sameSite: 'none',
-  secure: resolveIsSecure(request),
 });
 
 export const storeAuthCookies = async (
@@ -44,8 +44,14 @@ export const storeAuthCookies = async (
   const result: CookiePayload[] = [];
 
   cookieArray.forEach((cookieStr) => {
-  const parsed = parse(cookieStr) as Record<string, string | undefined>;
-    const options = buildCookieOptions(request, parsed);
+    const parsed = parse(cookieStr) as Record<string, string | undefined>;
+    const secure = resolveIsSecure(request);
+    const baseOptions = buildCookieOptions(request, parsed);
+    const options = {
+      ...baseOptions,
+      secure,
+      sameSite: resolveSameSite(secure),
+    } satisfies CookieOptions;
 
     if (parsed.accessToken) {
       cookieStore.set('accessToken', parsed.accessToken, options);
@@ -64,20 +70,21 @@ export const storeAuthCookies = async (
 export const clearAuthCookies = async (response: NextResponse, request: NextRequest) => {
   const cookieStore = await cookies();
   const secure = resolveIsSecure(request);
+  const sameSite = resolveSameSite(secure);
   cookieStore.delete('accessToken');
   cookieStore.delete('refreshToken');
 
   response.cookies.set('accessToken', '', {
     path: '/',
     httpOnly: true,
-    sameSite: 'none',
+    sameSite,
     secure,
     maxAge: 0,
   });
   response.cookies.set('refreshToken', '', {
     path: '/',
     httpOnly: true,
-    sameSite: 'none',
+    sameSite,
     secure,
     maxAge: 0,
   });

@@ -27,9 +27,11 @@ export async function GET(req: NextRequest) {
     return response;
   } catch (error) {
     if (isAxiosError(error)) {
-      const status = error.response?.status ?? 200;
-      const response = NextResponse.json(null, { status });
-      if ((status ?? 500) >= 400) {
+      const upstreamStatus = error.response?.status ?? 200;
+      const isAuthError = upstreamStatus >= 400 && upstreamStatus < 500;
+      const responseStatus = isAuthError ? 200 : upstreamStatus;
+      const response = NextResponse.json(null, { status: responseStatus });
+      if (isAuthError || upstreamStatus >= 500) {
         await clearAuthCookies(response, req);
       }
       return response;
