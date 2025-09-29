@@ -37,7 +37,7 @@ Before deploying, add the following environment variables in your Vercel project
 | --- | --- | --- |
 | `NEXT_PUBLIC_APP_URL` | `https://your-project.vercel.app` | Допомагає коректно формувати редіректи та відлагоджувати URL | 
 | `NEXT_PUBLIC_API_URL` | `https://notehub-api.goit.study` | Базовий URL бекенда (без `/api` в кінці) |
-| `AUTH_COOKIE_DOMAIN` | `your-project.vercel.app` або `.yourdomain.com` | Явно задає домен для `accessToken`/`refreshToken`, щоб Vercel зберігав cookies |
+| `AUTH_COOKIE_DOMAIN` | `your-project.vercel.app` або `.yourdomain.com` | (Необов'язково) Явно задає домен для `accessToken`/`refreshToken`. Задавайте, лише якщо потрібно шарити куки між субдоменами |
 
 > **Порада:** якщо у вас кастомний домен, використовуйте `.yourdomain.com`, щоб авторизаційні cookies працювали як на проді, так і на прев’ю-деплоях.
 

@@ -32,23 +32,17 @@ const buildCookieOptions = (request: NextRequest, parsed: Record<string, string 
   httpOnly: true,
 });
 
-const resolveCookieDomain = (request: NextRequest, useSecure: boolean) => {
+const resolveCookieDomain = (_request: NextRequest, useSecure: boolean) => {
   if (!useSecure) {
     return undefined;
   }
 
   const envDomain = process.env.AUTH_COOKIE_DOMAIN?.trim();
-  if (envDomain) {
-    return envDomain;
-  }
-
-  const hostname = request.nextUrl.hostname;
-
-  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
+  if (!envDomain) {
     return undefined;
   }
 
-  return hostname;
+  return envDomain;
 };
 
 export const storeAuthCookies = async (
