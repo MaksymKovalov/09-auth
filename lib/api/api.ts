@@ -1,13 +1,12 @@
 import axios from 'axios';
 
-const baseURL =
-  (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000') + '/api';
-
+// Для клієнтських запитів до власних Route Handlers завжди використовуємо відносні шляхи
 export const nextServer = axios.create({
-  baseURL,
+  baseURL: '/api',
   withCredentials: true,
 });
 
+// Для серверних запитів до зовнішнього бекенду
 export const api = axios.create({
   baseURL: 'https://notehub-api.goit.study',
   withCredentials: true,
