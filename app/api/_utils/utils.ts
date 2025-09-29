@@ -56,7 +56,6 @@ export const storeAuthCookies = async (
   }
 
   const cookieArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
-  const cookieStore = await cookies();
   const result: CookiePayload[] = [];
 
   cookieArray.forEach((cookieStr) => {
@@ -73,7 +72,6 @@ export const storeAuthCookies = async (
     } satisfies CookieOptions;
 
     if (parsed.accessToken) {
-      cookieStore.set('accessToken', parsed.accessToken, options);
       result.push({ name: 'accessToken', value: parsed.accessToken, options });
       logAuthDebug('cookies:set', {
         name: 'accessToken',
