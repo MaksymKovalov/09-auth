@@ -7,43 +7,58 @@ const resolveIsSecure = (request: NextRequest) => {
   return proto === 'https' || proto === 'https:';
 };
 
+type CookieOptions = {
+  path?: string;
+  expires?: Date;
+  maxAge?: number;
+  httpOnly?: boolean;
+  sameSite?: 'lax' | 'strict' | 'none';
+  secure?: boolean;
+};
+
+type CookiePayload = {
+  name: 'accessToken' | 'refreshToken';
+  value: string;
+  options: CookieOptions;
+};
+
+const buildCookieOptions = (request: NextRequest, parsed: Record<string, string | undefined>): CookieOptions => ({
+  path: parsed.Path ?? '/',
+  expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
+  maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : undefined,
+  httpOnly: true,
+  sameSite: 'none',
+  secure: resolveIsSecure(request),
+});
+
 export const storeAuthCookies = async (
   request: NextRequest,
   setCookieHeader: string | string[] | undefined,
-): Promise<boolean> => {
+): Promise<CookiePayload[]> => {
   if (!setCookieHeader) {
-    return false;
+    return [];
   }
 
   const cookieArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
   const cookieStore = await cookies();
-  const secure = resolveIsSecure(request);
-
-  let stored = false;
+  const result: CookiePayload[] = [];
 
   cookieArray.forEach((cookieStr) => {
-    const parsed = parse(cookieStr);
-    const options = {
-      path: parsed.Path ?? '/',
-      expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
-      maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : undefined,
-      httpOnly: true as const,
-      sameSite: 'none' as const,
-      secure,
-    };
+  const parsed = parse(cookieStr) as Record<string, string | undefined>;
+    const options = buildCookieOptions(request, parsed);
 
     if (parsed.accessToken) {
       cookieStore.set('accessToken', parsed.accessToken, options);
-      stored = true;
+      result.push({ name: 'accessToken', value: parsed.accessToken, options });
     }
 
     if (parsed.refreshToken) {
       cookieStore.set('refreshToken', parsed.refreshToken, options);
-      stored = true;
+      result.push({ name: 'refreshToken', value: parsed.refreshToken, options });
     }
   });
 
-  return stored;
+  return result;
 };
 
 export const clearAuthCookies = async (response: NextResponse, request: NextRequest) => {

@@ -19,8 +19,12 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    await storeAuthCookies(req, apiRes.headers['set-cookie']);
-    return NextResponse.json(apiRes.data ?? null, { status: apiRes.status });
+    const cookiesToSet = await storeAuthCookies(req, apiRes.headers['set-cookie']);
+    const response = NextResponse.json(apiRes.data ?? null, { status: apiRes.status });
+    cookiesToSet.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
+    return response;
   } catch (error) {
     if (isAxiosError(error)) {
       const status = error.response?.status ?? 200;

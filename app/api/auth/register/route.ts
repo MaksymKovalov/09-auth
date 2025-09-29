@@ -7,8 +7,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const apiRes = await api.post('auth/register', body);
-    await storeAuthCookies(req, apiRes.headers['set-cookie']);
+    const cookiesToSet = await storeAuthCookies(req, apiRes.headers['set-cookie']);
     const response = NextResponse.json(apiRes.data ?? null, { status: apiRes.status });
+    cookiesToSet.forEach(({ name, value, options }) => {
+      response.cookies.set(name, value, options);
+    });
     return response;
   } catch (error) {
     if (isAxiosError(error)) {
