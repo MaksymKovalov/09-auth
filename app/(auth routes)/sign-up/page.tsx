@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { isAxiosError, type AxiosError } from 'axios';
 import { register } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
@@ -11,7 +11,6 @@ import css from './page.module.css';
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value);
 
 const SignUpPage = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useAuthStore((state: AuthState) => state.setUser);
   const [error, setError] = useState<string | null>(null);
@@ -48,19 +47,14 @@ const SignUpPage = () => {
       setUser(user);
 
       // Wait for cookies to be set
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 300));
 
       const redirectTarget = searchParams?.get('redirect');
       const destination =
         redirectTarget && redirectTarget.startsWith('/') ? redirectTarget : '/profile';
 
-      // Use router.push for navigation
-      router.push(destination);
-
-      // Force reload after a short delay to ensure cookies are propagated
-      setTimeout(() => {
-        router.refresh();
-      }, 200);
+      // Use window.location for hard redirect to ensure cookies are set
+      window.location.href = destination;
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         const axiosError = error as AxiosError<{
