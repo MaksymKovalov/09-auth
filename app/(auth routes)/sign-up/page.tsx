@@ -47,13 +47,15 @@ const SignUpPage = () => {
       const user = await register(payload);
       setUser(user);
 
-      // Wait a bit for cookies to be set
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for cookies to be set (longer delay for Vercel)
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       const redirectTarget = searchParams?.get('redirect');
       const destination =
         redirectTarget && redirectTarget.startsWith('/') ? redirectTarget : '/profile';
-      router.push(destination);
+
+      // Use window.location for hard redirect (ensures cookies are set)
+      window.location.href = destination;
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         const axiosError = error as AxiosError<{

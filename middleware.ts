@@ -11,7 +11,10 @@ export function middleware(request: NextRequest) {
     path === '/favicon.ico' ||
     path === '/'
   ) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    // Вимикаємо кешування middleware для Vercel
+    response.headers.set('x-middleware-cache', 'no-cache');
+    return response;
   }
 
   // Отримуємо cookies
@@ -32,17 +35,26 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/sign-in';
     url.searchParams.set('redirect', path);
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    // Вимикаємо кешування middleware для Vercel
+    redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    return redirectResponse;
   }
 
   if (isAuthenticated && isAuthPage) {
     // Авторизований на сторінці логіну/реєстрації -> на профіль
     const url = request.nextUrl.clone();
     url.pathname = '/profile';
-    return NextResponse.redirect(url);
+    const redirectResponse = NextResponse.redirect(url);
+    // Вимикаємо кешування middleware для Vercel
+    redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    return redirectResponse;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  // Вимикаємо кешування middleware для Vercel
+  response.headers.set('x-middleware-cache', 'no-cache');
+  return response;
 }
 
 // Конфігурація для Vercel
