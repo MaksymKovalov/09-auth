@@ -5,6 +5,8 @@ import { fetchNotesServer } from '@/lib/api/serverApi';
 import { NOTE_TAGS, type NoteTag } from '@/types/note';
 import NotesClient from './Notes.client';
 
+export const dynamic = 'force-dynamic';
+
 const NOTES_PER_PAGE = 12;
 
 type PageParams = {

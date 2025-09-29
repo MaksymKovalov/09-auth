@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation';
 import { getCurrentUserServer } from '@/lib/api/serverApi';
 import css from './page.module.css';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'NoteHub | Profile',
   description: 'Review your NoteHub profile details and manage your account.',
