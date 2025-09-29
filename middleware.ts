@@ -1,114 +1,147 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { ResponseCookies, RequestCookies } from 'next/dist/server/web/spec-extension/cookies';
 
-// Функція для копіювання кукі з response в request
-function applySetCookie(req: NextRequest, res: NextResponse): void {
-  // Парсимо кукі з response
-  const setCookies = new ResponseCookies(res.headers);
+const AUTH_PAGES = ['/sign-in', '/sign-up'];
+const PROTECTED_PREFIXES = ['/profile', '/notes'];
 
-  // Створюємо нові заголовки для request з оновленими кукі
-  const newReqHeaders = new Headers(req.headers);
-  const newReqCookies = new RequestCookies(newReqHeaders);
+const isAuthPage = (pathname: string) => AUTH_PAGES.includes(pathname);
+const isProtectedPath = (pathname: string) =>
+  PROTECTED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
-  // Копіюємо всі кукі з response в request
-  setCookies.getAll().forEach((cookie) => {
-    newReqCookies.set(cookie);
-  });
+const skipMiddleware = (pathname: string) =>
+  pathname.startsWith('/_next') ||
+  pathname.startsWith('/api') ||
+  pathname === '/' ||
+  pathname === '/favicon.ico' ||
+  pathname === '/sitemap.xml' ||
+  pathname === '/robots.txt';
 
-  // Створюємо dummy response з оновленими заголовками
-  const dummyRes = NextResponse.next({
-    request: {
-      headers: newReqHeaders,
-    },
-  });
+const extractSetCookies = (headers: Headers): string[] => {
+  if ('getSetCookie' in headers && typeof (headers as Headers & { getSetCookie(): string[] }).getSetCookie === 'function') {
+    return (headers as Headers & { getSetCookie(): string[] }).getSetCookie();
+  }
 
-  // Оновлюємо заголовки оригінального response
-  dummyRes.headers.forEach((value, key) => {
-    if (key === 'x-middleware-override-headers' || key.startsWith('x-middleware-request-')) {
-      res.headers.set(key, value);
+  const header = headers.get('set-cookie');
+  return header ? [header] : [];
+};
+
+const mergeCookieHeader = (existingCookie: string, refreshedCookies: string[]): string => {
+  if (!refreshedCookies.length) return existingCookie;
+
+  const cookieMap = new Map<string, string>();
+
+  const registerPair = (pair: string) => {
+    const [name, ...rest] = pair.trim().split('=');
+    if (name && rest.length) {
+      cookieMap.set(name, rest.join('='));
     }
+  };
+
+  existingCookie
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .forEach(registerPair);
+
+  refreshedCookies.forEach((cookieStr) => {
+    const [pair] = cookieStr.split(';');
+    registerPair(pair);
   });
-}
 
-export function middleware(request: NextRequest) {
-  const path = request.nextUrl.pathname;
+  return Array.from(cookieMap.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+};
 
-  // Пропускаємо всі технічні маршрути
-  if (
-    path.startsWith('/_next') ||
-    path.startsWith('/api') ||
-    path === '/favicon.ico' ||
-    path === '/'
-  ) {
+const removeAuthCookies = (cookieHeader: string): string =>
+  cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !part.startsWith('accessToken=') && !part.startsWith('refreshToken='))
+    .join('; ');
+
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  if (skipMiddleware(pathname)) {
     const response = NextResponse.next();
-    // Вимикаємо кешування middleware для Vercel
     response.headers.set('x-middleware-cache', 'no-cache');
     return response;
   }
 
-  // Отримуємо cookies
-  const cookies = request.cookies;
-  const accessToken = cookies.get('accessToken');
-  const refreshToken = cookies.get('refreshToken');
+  let hasAccessToken = request.cookies.has('accessToken');
+  const hasRefreshToken = request.cookies.has('refreshToken');
+  let cookieHeader = request.headers.get('cookie') ?? '';
+  const requestHeaders = new Headers(request.headers);
+  const responseCookies: string[] = [];
 
-  // Логування для діагностики на Vercel
-  if (process.env.NODE_ENV === 'production') {
-    console.log('Middleware:', {
-      path,
-      hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken,
-      cookieHeader: request.headers.get('cookie'),
-    });
+  const applyUpdatedCookieHeader = (headerValue: string | null) => {
+    cookieHeader = headerValue ?? '';
+    if (headerValue && headerValue.length > 0) {
+      requestHeaders.set('cookie', headerValue);
+    } else {
+      requestHeaders.delete('cookie');
+    }
+  };
+
+  if (!hasAccessToken && hasRefreshToken) {
+    try {
+      const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
+        headers: {
+          cookie: cookieHeader,
+        },
+        cache: 'no-store',
+      });
+
+      const setCookies = extractSetCookies(sessionResponse.headers);
+      responseCookies.push(...setCookies);
+
+      if (sessionResponse.ok) {
+        const sessionData = await sessionResponse.json().catch(() => null);
+        if (sessionData) {
+          hasAccessToken = true;
+          if (setCookies.length) {
+            applyUpdatedCookieHeader(mergeCookieHeader(cookieHeader, setCookies));
+          }
+        } else {
+          applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+        }
+      } else {
+        applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+      }
+    } catch {
+      applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+    }
   }
 
-  // Користувач авторизований якщо є хоча б один токен
-  const isAuthenticated = !!(accessToken || refreshToken);
-
-  // Визначаємо тип маршруту
-  const isAuthPage = path === '/sign-in' || path === '/sign-up';
-  const isProtectedPage = path.startsWith('/profile') || path.startsWith('/notes');
-
-  // Редиректи
-  if (!isAuthenticated && isProtectedPage) {
-    // Неавторизований на захищеній сторінці -> на логін
-    const url = request.nextUrl.clone();
-    url.pathname = '/sign-in';
-    url.searchParams.set('redirect', path);
-    const redirectResponse = NextResponse.redirect(url);
-    // Вимикаємо кешування middleware для Vercel
+  if (!hasAccessToken && isProtectedPath(pathname)) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/sign-in';
+    redirectUrl.searchParams.set('redirect', pathname);
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+    responseCookies.forEach((cookie) => redirectResponse.headers.append('set-cookie', cookie));
     redirectResponse.headers.set('x-middleware-cache', 'no-cache');
     return redirectResponse;
   }
 
-  if (isAuthenticated && isAuthPage) {
-    // Авторизований на сторінці логіну/реєстрації -> на профіль
-    const url = request.nextUrl.clone();
-    url.pathname = '/profile';
-    const redirectResponse = NextResponse.redirect(url);
-    // Вимикаємо кешування middleware для Vercel
+  if (hasAccessToken && isAuthPage(pathname)) {
+    const destination = request.nextUrl.clone();
+    destination.pathname = '/profile';
+    const redirectResponse = NextResponse.redirect(destination);
+    responseCookies.forEach((cookie) => redirectResponse.headers.append('set-cookie', cookie));
     redirectResponse.headers.set('x-middleware-cache', 'no-cache');
     return redirectResponse;
   }
 
-  const response = NextResponse.next();
-  // Вимикаємо кешування middleware для Vercel
+  const response = NextResponse.next({
+    request: cookieHeader !== request.headers.get('cookie') ? { headers: requestHeaders } : undefined,
+  });
+  responseCookies.forEach((cookie) => response.headers.append('set-cookie', cookie));
   response.headers.set('x-middleware-cache', 'no-cache');
-
-  // Застосовуємо кукі з response до request для Vercel
-  applySetCookie(request, response);
   return response;
 }
 
-// Конфігурація для Vercel
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except:
-     * - api (API routes)
-     * - _next (Next.js internals)
-     * - fonts, images, etc.
-     */
-    '/((?!api|_next|.*\\..*|favicon.ico).*)',
-  ],
+  matcher: ['/profile/:path*', '/notes/:path*', '/sign-in', '/sign-up'],
 };
