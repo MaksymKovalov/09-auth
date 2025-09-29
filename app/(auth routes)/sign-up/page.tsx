@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { isAxiosError, type AxiosError } from 'axios';
 import { register } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
@@ -11,7 +11,6 @@ import css from './page.module.css';
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value);
 
 const SignUpPage = () => {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useAuthStore((state: AuthState) => state.setUser);
   const [error, setError] = useState<string | null>(null);
