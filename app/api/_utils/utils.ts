@@ -63,7 +63,7 @@ export const storeAuthCookies = async (
     const parsed = parse(cookieStr) as Record<string, string | undefined>;
     const secure = resolveIsSecure(request);
     const baseOptions = buildCookieOptions(request, parsed);
-    const useSecure = process.env.NODE_ENV === 'production' ? secure : false; // Умовне secure для production
+    const useSecure = secure;
     const domain = resolveCookieDomain(request, useSecure);
     const options = {
       ...baseOptions,
