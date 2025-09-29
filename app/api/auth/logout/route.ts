@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const cookieStore = await cookies();
     const cookieHeader = cookieStore.toString();
 
-    await api.post('auth/logout', null, {
+  await api.post('/auth/logout', null, {
       headers: {
         Cookie: cookieHeader,
       },

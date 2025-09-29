@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 
 const AUTH_PAGES = ['/sign-in', '/sign-up'];
 const PROTECTED_PREFIXES = ['/profile', '/notes'];
+const isDebug = process.env.NODE_ENV !== 'production';
 
 const isAuthPage = (pathname: string) => AUTH_PAGES.includes(pathname);
 const isProtectedPath = (pathname: string) =>
@@ -94,6 +95,10 @@ export async function middleware(request: NextRequest) {
         cache: 'no-store',
       });
 
+      if (isDebug) {
+        console.debug('[middleware] session refresh status', sessionResponse.status);
+      }
+
       const setCookies = extractSetCookies(sessionResponse.headers);
       responseCookies.push(...setCookies);
 
@@ -104,21 +109,34 @@ export async function middleware(request: NextRequest) {
           if (setCookies.length) {
             applyUpdatedCookieHeader(mergeCookieHeader(cookieHeader, setCookies));
           }
+          if (isDebug) {
+            console.debug('[middleware] session restored via refresh token');
+          }
         } else {
           applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+          if (isDebug) {
+            console.debug('[middleware] session empty, clearing auth cookies');
+          }
         }
       } else {
         applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+        if (isDebug) {
+          console.debug('[middleware] session refresh failed, clearing auth cookies');
+        }
       }
-    } catch {
+    } catch (error) {
       applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+      if (isDebug) {
+        console.debug('[middleware] session refresh threw error, clearing auth cookies', error);
+      }
     }
   }
 
   if (!hasAccessToken && isProtectedPath(pathname)) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/sign-in';
-    redirectUrl.searchParams.set('redirect', pathname);
+    const targetPath = `${pathname}${request.nextUrl.search}`;
+    redirectUrl.searchParams.set('redirect', targetPath);
     const redirectResponse = NextResponse.redirect(redirectUrl);
     responseCookies.forEach((cookie) => redirectResponse.headers.append('set-cookie', cookie));
     redirectResponse.headers.set('x-middleware-cache', 'no-cache');

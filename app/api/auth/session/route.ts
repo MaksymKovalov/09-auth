@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(null, { status: 200 });
     }
 
-    const apiRes = await api.get('auth/session', {
+  const apiRes = await api.get('/auth/session', {
       headers: {
         Cookie: cookieHeader,
       },

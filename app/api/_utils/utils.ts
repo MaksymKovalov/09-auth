@@ -7,7 +7,7 @@ const resolveIsSecure = (request: NextRequest) => {
   return proto === 'https' || proto === 'https:';
 };
 
-const resolveSameSite = (): 'lax' | 'strict' | 'none' => 'lax';
+const resolveSameSite = (secure: boolean): 'lax' | 'strict' | 'none' => (secure ? 'none' : 'lax');
 
 type CookieOptions = {
   path?: string;
@@ -16,6 +16,7 @@ type CookieOptions = {
   httpOnly?: boolean;
   sameSite?: 'lax' | 'strict' | 'none';
   secure?: boolean;
+  domain?: string;
 };
 
 type CookiePayload = {
@@ -30,6 +31,25 @@ const buildCookieOptions = (request: NextRequest, parsed: Record<string, string 
   maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : 7 * 24 * 60 * 60, // 7 days default
   httpOnly: true,
 });
+
+const resolveCookieDomain = (request: NextRequest, useSecure: boolean) => {
+  if (!useSecure) {
+    return undefined;
+  }
+
+  const envDomain = process.env.AUTH_COOKIE_DOMAIN?.trim();
+  if (envDomain) {
+    return envDomain;
+  }
+
+  const hostname = request.nextUrl.hostname;
+
+  if (!hostname || hostname === 'localhost' || hostname === '127.0.0.1') {
+    return undefined;
+  }
+
+  return hostname;
+};
 
 export const storeAuthCookies = async (
   request: NextRequest,
@@ -47,10 +67,13 @@ export const storeAuthCookies = async (
     const parsed = parse(cookieStr) as Record<string, string | undefined>;
     const secure = resolveIsSecure(request);
     const baseOptions = buildCookieOptions(request, parsed);
+    const useSecure = process.env.NODE_ENV === 'production' ? secure : false; // Умовне secure для production
+    const domain = resolveCookieDomain(request, useSecure);
     const options = {
       ...baseOptions,
-      secure: process.env.NODE_ENV === 'production' ? secure : false, // Умовне secure для production
-      sameSite: resolveSameSite(),
+      secure: useSecure,
+      sameSite: resolveSameSite(useSecure),
+      ...(domain ? { domain } : {}),
     } satisfies CookieOptions;
 
     if (parsed.accessToken) {
@@ -70,7 +93,9 @@ export const storeAuthCookies = async (
 export const clearAuthCookies = async (response: NextResponse, request: NextRequest) => {
   const cookieStore = await cookies();
   const secure = resolveIsSecure(request);
-  const sameSite = resolveSameSite();
+  const useSecure = process.env.NODE_ENV === 'production' ? secure : false;
+  const sameSite = resolveSameSite(useSecure);
+  const domain = resolveCookieDomain(request, useSecure);
   cookieStore.delete('accessToken');
   cookieStore.delete('refreshToken');
 
@@ -78,15 +103,17 @@ export const clearAuthCookies = async (response: NextResponse, request: NextRequ
     path: '/',
     httpOnly: true,
     sameSite,
-    secure: process.env.NODE_ENV === 'production' ? secure : false,
+    secure: useSecure,
     maxAge: 0,
+    ...(domain ? { domain } : {}),
   });
   response.cookies.set('refreshToken', '', {
     path: '/',
     httpOnly: true,
     sameSite,
-    secure: process.env.NODE_ENV === 'production' ? secure : false,
+    secure: useSecure,
     maxAge: 0,
+    ...(domain ? { domain } : {}),
   });
 };
 
