@@ -3,7 +3,8 @@ import axios from 'axios';
 const normalizeBaseUrl = (url: string) => url.replace(/\/$/, '');
 
 const getServerBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
+  // На Vercel не використовуємо localhost URL
+  if (process.env.NEXT_PUBLIC_API_URL && !process.env.VERCEL) {
     return `${normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL)}/api`;
   }
 
@@ -21,7 +22,9 @@ const getServerBaseUrl = () => {
   return `http://localhost:${port}/api`;
 };
 
-const baseURL = typeof window === 'undefined' ? getServerBaseUrl() : process.env.NEXT_PUBLIC_API_URL ? `${normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL)}/api` : '/api';
+const baseURL = typeof window === 'undefined'
+  ? getServerBaseUrl()
+  : '/api'; // На клієнті завжди використовуємо відносний URL
 
 export const api = axios.create({
   baseURL,

@@ -48,9 +48,31 @@ export const getSessionServer = async () =>
 
 export const getCurrentUserServer = async () => {
   try {
-    const response = await api.get<User>('/users/me', await mergeConfigs());
+    console.log('getCurrentUserServer: Starting request');
+    const config = await mergeConfigs();
+    console.log('getCurrentUserServer: Config ready');
+
+    // Додаємо таймаут для Vercel
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => {
+        console.log('getCurrentUserServer: Request timeout');
+        resolve(null);
+      }, 5000); // 5 секунд таймаут
+    });
+
+    const requestPromise = api.get<User>('/users/me', config);
+
+    const response = await Promise.race([requestPromise, timeoutPromise]);
+
+    if (!response) {
+      console.log('getCurrentUserServer: Timeout reached');
+      return null;
+    }
+
+    console.log('getCurrentUserServer: Response received', response.data);
     return response.data;
-  } catch {
+  } catch (error) {
+    console.error('getCurrentUserServer: Error', error);
     return null;
   }
 };
