@@ -44,7 +44,7 @@ export const deleteNoteServer = async (id: string) =>
   deleteNoteRequest(id, await mergeConfigs());
 
 export const getSessionServer = async () =>
-  api.get<{ success: boolean }>('/auth/session', await mergeConfigs()).then((res) => res.data);
+  api.get<{ success: boolean }>('/auth/session', await mergeConfigs());
 
 export const getCurrentUserServer = async () => {
   try {

@@ -108,10 +108,8 @@ export async function middleware(request: NextRequest) {
     updateRequestCookies(cleaned);
   };
 
-  const shouldCheckSession =
-    (isPublicOnlyPath(pathname) && (hasAccessToken || hasRefreshToken)) || (!hasAccessToken && hasRefreshToken);
-
-  if (shouldCheckSession) {
+  // Check if we need to refresh the session
+  if (!hasAccessToken && hasRefreshToken) {
     try {
       const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
         headers: {
@@ -124,7 +122,7 @@ export async function middleware(request: NextRequest) {
 
       if (sessionResponse.ok) {
         const sessionData = await sessionResponse.json().catch(() => null);
-        if (sessionData) {
+        if (sessionData?.success) {
           hasAccessToken = true;
           refreshedCookies = setCookies;
           if (setCookies.length) {
@@ -138,12 +136,12 @@ export async function middleware(request: NextRequest) {
           dropAuthCookiesFromRequest();
         }
       } else {
-  hasAccessToken = false;
+        hasAccessToken = false;
         refreshedCookies = setCookies;
         dropAuthCookiesFromRequest();
       }
     } catch {
-  hasAccessToken = false;
+      hasAccessToken = false;
       dropAuthCookiesFromRequest();
     }
   }
@@ -177,5 +175,10 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/profile/:path*', '/notes/:path*', '/sign-in', '/sign-up'],
+  matcher: [
+    '/profile/:path*',
+    '/notes/:path*',
+    '/sign-in',
+    '/sign-up'
+  ],
 };
