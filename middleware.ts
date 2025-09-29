@@ -66,11 +66,16 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const incomingCookieHeader = request.headers.get('cookie') ?? '';
 
+  const initialAccessToken = request.cookies.get('accessToken')?.value ?? '';
+  const initialRefreshToken = request.cookies.get('refreshToken')?.value ?? '';
+  let hasAccessToken = Boolean(initialAccessToken);
+  let hasRefreshToken = Boolean(initialRefreshToken);
+
   logAuthDebug('middleware:request', {
     pathname,
     incomingCookies: debugCookies(incomingCookieHeader),
-    hasAccessToken: request.cookies.has('accessToken'),
-    hasRefreshToken: request.cookies.has('refreshToken'),
+    hasAccessToken,
+    hasRefreshToken,
   });
 
   if (skipMiddleware(pathname)) {
@@ -80,19 +85,22 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  let hasAccessToken = request.cookies.has('accessToken');
-  const hasRefreshToken = request.cookies.has('refreshToken');
   let cookieHeader = request.headers.get('cookie') ?? '';
   const requestHeaders = new Headers(request.headers);
   const responseCookies: string[] = [];
 
-  const applyUpdatedCookieHeader = (headerValue: string | null) => {
-    cookieHeader = headerValue ?? '';
-    if (headerValue && headerValue.length > 0) {
-      requestHeaders.set('cookie', headerValue);
+  const applyUpdatedCookieHeader = (updatedHeader: string) => {
+    cookieHeader = updatedHeader;
+
+    if (updatedHeader && updatedHeader.length > 0) {
+      requestHeaders.set('cookie', updatedHeader);
     } else {
       requestHeaders.delete('cookie');
     }
+
+    const parsedState = debugCookies(updatedHeader);
+    hasAccessToken = parsedState.hasAccessToken;
+    hasRefreshToken = parsedState.hasRefreshToken;
   };
 
   if (!hasAccessToken && hasRefreshToken) {
@@ -121,9 +129,12 @@ export async function middleware(request: NextRequest) {
       if (sessionResponse.ok) {
         const sessionData = await sessionResponse.json().catch(() => null);
         if (sessionData) {
-          hasAccessToken = true;
           if (setCookies.length) {
             applyUpdatedCookieHeader(mergeCookieHeader(cookieHeader, setCookies));
+          } else {
+            const parsedState = debugCookies(cookieHeader);
+            hasAccessToken = parsedState.hasAccessToken;
+            hasRefreshToken = parsedState.hasRefreshToken;
           }
           logAuthDebug('middleware:session-restored', {
             hasAccessToken,
