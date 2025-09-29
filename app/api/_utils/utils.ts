@@ -7,7 +7,7 @@ const resolveIsSecure = (request: NextRequest) => {
   return proto === 'https' || proto === 'https:';
 };
 
-const resolveSameSite = (secure: boolean): 'lax' | 'strict' | 'none' => (secure ? 'none' : 'lax');
+const resolveSameSite = (secure: boolean): 'lax' | 'strict' | 'none' => 'lax';
 
 type CookieOptions = {
   path?: string;
@@ -25,9 +25,9 @@ type CookiePayload = {
 };
 
 const buildCookieOptions = (request: NextRequest, parsed: Record<string, string | undefined>): CookieOptions => ({
-  path: parsed.Path ?? '/',
+  path: '/',
   expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
-  maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : undefined,
+  maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : 7 * 24 * 60 * 60, // 7 days default
   httpOnly: true,
 });
 
