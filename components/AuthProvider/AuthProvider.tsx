@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { getSession } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
 
@@ -11,11 +11,9 @@ interface AuthProviderProps {
 
 const AuthProvider = ({ children }: AuthProviderProps) => {
   const pathname = usePathname();
-  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const setUser = useAuthStore((state: AuthState) => state.setUser);
   const clearIsAuthenticated = useAuthStore((state: AuthState) => state.clearIsAuthenticated);
-  const isAuthenticated = useAuthStore((state: AuthState) => state.isAuthenticated);
 
   // Приватні маршрути
   const isPrivateRoute = pathname?.startsWith('/profile') || pathname?.startsWith('/notes');
@@ -30,25 +28,18 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
           setUser(sessionUser);
         } else {
           clearIsAuthenticated();
-          // Якщо користувач неавторизований і намагається перейти на приватну сторінку
-          if (isPrivateRoute) {
-            router.push('/sign-in');
-          }
         }
-      } catch (error) {
+      } catch {
         clearIsAuthenticated();
-        if (isPrivateRoute) {
-          router.push('/sign-in');
-        }
       } finally {
         setIsLoading(false);
       }
     };
 
     checkSession();
-  }, [pathname, setUser, clearIsAuthenticated, router, isPrivateRoute]);
+  }, [pathname, setUser, clearIsAuthenticated]);
 
-  // Під час перевірки показуємо лоадер
+  // Показуємо лоадер тільки на приватних сторінках під час завантаження
   if (isLoading && isPrivateRoute) {
     return (
       <div style={{
@@ -62,11 +53,7 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
     );
   }
 
-  // Якщо користувач неавторизований на приватній сторінці - не показуємо контент
-  if (!isAuthenticated && isPrivateRoute && !isLoading) {
-    return null;
-  }
-
+  // Завжди показуємо children (middleware контролює доступ)
   return <>{children}</>;
 };
 
