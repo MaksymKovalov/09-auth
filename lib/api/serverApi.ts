@@ -12,12 +12,18 @@ import {
 import type { CreateNoteRequest } from '@/types/note';
 import type { UpdateUserRequest } from '@/types/auth';
 import type { User } from '@/types/user';
+import { debugCookies, logAuthDebug } from '@/lib/utils/authDebug';
 
 const mergeConfigs = async (config?: AxiosRequestConfig): Promise<AxiosRequestConfig> => {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore.toString();
 
   const baseHeaders = cookieHeader ? { Cookie: cookieHeader } : undefined;
+
+  logAuthDebug('serverApi:merge-configs', {
+    incomingHeaders: Boolean(config?.headers),
+    cookies: debugCookies(cookieHeader),
+  });
 
   return {
     ...config,
@@ -48,14 +54,13 @@ export const getSessionServer = async () =>
 
 export const getCurrentUserServer = async () => {
   try {
-    console.log('getCurrentUserServer: Starting request');
     const config = await mergeConfigs();
-    console.log('getCurrentUserServer: Config ready');
+    logAuthDebug('serverApi:getCurrentUser:start', {});
 
     // Додаємо таймаут для Vercel
     const timeoutPromise = new Promise<null>((resolve) => {
       setTimeout(() => {
-        console.log('getCurrentUserServer: Request timeout');
+        logAuthDebug('serverApi:getCurrentUser:timeout', {});
         resolve(null);
       }, 5000); // 5 секунд таймаут
     });
@@ -65,14 +70,19 @@ export const getCurrentUserServer = async () => {
     const response = await Promise.race([requestPromise, timeoutPromise]);
 
     if (!response) {
-      console.log('getCurrentUserServer: Timeout reached');
+      logAuthDebug('serverApi:getCurrentUser:timeout-reached', {});
       return null;
     }
 
-    console.log('getCurrentUserServer: Response received', response.data);
+    logAuthDebug('serverApi:getCurrentUser:success', {
+      responseStatus: response.status,
+      hasData: Boolean(response.data),
+    });
     return response.data;
   } catch (error) {
-    console.error('getCurrentUserServer: Error', error);
+    logAuthDebug('serverApi:getCurrentUser:error', {
+      message: error instanceof Error ? error.message : 'unknown-error',
+    });
     return null;
   }
 };

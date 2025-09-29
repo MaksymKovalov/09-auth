@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import type { NextRequest, NextResponse } from 'next/server';
 import { parse } from 'cookie';
+import { debugCookies, logAuthDebug } from '../../../lib/utils/authDebug';
 
 const resolveIsSecure = (request: NextRequest) => {
   const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol;
@@ -50,6 +51,7 @@ export const storeAuthCookies = async (
   setCookieHeader: string | string[] | undefined,
 ): Promise<CookiePayload[]> => {
   if (!setCookieHeader) {
+    logAuthDebug('cookies:store-skipped', { reason: 'no-set-cookie' });
     return [];
   }
 
@@ -73,11 +75,19 @@ export const storeAuthCookies = async (
     if (parsed.accessToken) {
       cookieStore.set('accessToken', parsed.accessToken, options);
       result.push({ name: 'accessToken', value: parsed.accessToken, options });
+      logAuthDebug('cookies:set', {
+        name: 'accessToken',
+        options,
+      });
     }
 
     if (parsed.refreshToken) {
       cookieStore.set('refreshToken', parsed.refreshToken, options);
       result.push({ name: 'refreshToken', value: parsed.refreshToken, options });
+      logAuthDebug('cookies:set', {
+        name: 'refreshToken',
+        options,
+      });
     }
   });
 
@@ -90,6 +100,12 @@ export const clearAuthCookies = async (response: NextResponse, request: NextRequ
   const useSecure = process.env.NODE_ENV === 'production' ? secure : false;
   const sameSite = resolveSameSite();
   const domain = resolveCookieDomain(request, useSecure);
+  logAuthDebug('cookies:clear-start', {
+    incoming: debugCookies(cookieStore.toString()),
+    useSecure,
+    sameSite,
+    domain,
+  });
   cookieStore.delete('accessToken');
   cookieStore.delete('refreshToken');
 
@@ -108,6 +124,9 @@ export const clearAuthCookies = async (response: NextResponse, request: NextRequ
     secure: useSecure,
     maxAge: 0,
     ...(domain ? { domain } : {}),
+  });
+  logAuthDebug('cookies:clear-sent', {
+    domain,
   });
 };
 

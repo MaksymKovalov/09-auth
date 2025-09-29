@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { debugCookies, logAuthDebug } from './lib/utils/authDebug';
 
 const AUTH_PAGES = ['/sign-in', '/sign-up'];
 const PROTECTED_PREFIXES = ['/profile', '/notes'];
-const isDebug = process.env.NODE_ENV !== 'production';
 
 const isAuthPage = (pathname: string) => AUTH_PAGES.includes(pathname);
 const isProtectedPath = (pathname: string) =>
@@ -64,10 +64,19 @@ const removeAuthCookies = (cookieHeader: string): string =>
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const incomingCookieHeader = request.headers.get('cookie') ?? '';
+
+  logAuthDebug('middleware:request', {
+    pathname,
+    incomingCookies: debugCookies(incomingCookieHeader),
+    hasAccessToken: request.cookies.has('accessToken'),
+    hasRefreshToken: request.cookies.has('refreshToken'),
+  });
 
   if (skipMiddleware(pathname)) {
     const response = NextResponse.next();
     response.headers.set('x-middleware-cache', 'no-cache');
+    logAuthDebug('middleware:skip', { pathname });
     return response;
   }
 
@@ -95,12 +104,19 @@ export async function middleware(request: NextRequest) {
         cache: 'no-store',
       });
 
-      if (isDebug) {
-        console.debug('[middleware] session refresh status', sessionResponse.status);
-      }
+      logAuthDebug('middleware:session-response', {
+        status: sessionResponse.status,
+        redirected: sessionResponse.redirected,
+      });
 
       const setCookies = extractSetCookies(sessionResponse.headers);
       responseCookies.push(...setCookies);
+
+      if (setCookies.length) {
+        logAuthDebug('middleware:set-cookie', {
+          names: setCookies.map((cookieStr) => cookieStr.split(';')[0]?.split('=')[0]),
+        });
+      }
 
       if (sessionResponse.ok) {
         const sessionData = await sessionResponse.json().catch(() => null);
@@ -109,26 +125,23 @@ export async function middleware(request: NextRequest) {
           if (setCookies.length) {
             applyUpdatedCookieHeader(mergeCookieHeader(cookieHeader, setCookies));
           }
-          if (isDebug) {
-            console.debug('[middleware] session restored via refresh token');
-          }
+          logAuthDebug('middleware:session-restored', {
+            hasAccessToken,
+            cookerAfterRestore: debugCookies(cookieHeader),
+          });
         } else {
           applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
-          if (isDebug) {
-            console.debug('[middleware] session empty, clearing auth cookies');
-          }
+          logAuthDebug('middleware:session-empty', {});
         }
       } else {
         applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
-        if (isDebug) {
-          console.debug('[middleware] session refresh failed, clearing auth cookies');
-        }
+        logAuthDebug('middleware:session-failed', { status: sessionResponse.status });
       }
     } catch (error) {
       applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
-      if (isDebug) {
-        console.debug('[middleware] session refresh threw error, clearing auth cookies', error);
-      }
+      logAuthDebug('middleware:session-error', {
+        message: error instanceof Error ? error.message : 'unknown-error',
+      });
     }
   }
 
@@ -140,6 +153,12 @@ export async function middleware(request: NextRequest) {
     const redirectResponse = NextResponse.redirect(redirectUrl);
     responseCookies.forEach((cookie) => redirectResponse.headers.append('set-cookie', cookie));
     redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    logAuthDebug('middleware:redirect-to-login', {
+      pathname,
+      targetPath,
+      hasAccessToken,
+      hasRefreshToken,
+    });
     return redirectResponse;
   }
 
@@ -149,6 +168,11 @@ export async function middleware(request: NextRequest) {
     const redirectResponse = NextResponse.redirect(destination);
     responseCookies.forEach((cookie) => redirectResponse.headers.append('set-cookie', cookie));
     redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    logAuthDebug('middleware:redirect-to-profile', {
+      pathname,
+      hasAccessToken,
+      hasRefreshToken,
+    });
     return redirectResponse;
   }
 
@@ -157,6 +181,10 @@ export async function middleware(request: NextRequest) {
   });
   responseCookies.forEach((cookie) => response.headers.append('set-cookie', cookie));
   response.headers.set('x-middleware-cache', 'no-cache');
+  logAuthDebug('middleware:next', {
+    pathname,
+    responseCookies: responseCookies.map((cookieStr) => cookieStr.split(';')[0]?.split('=')[0]),
+  });
   return response;
 }
 
