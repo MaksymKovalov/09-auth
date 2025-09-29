@@ -33,17 +33,25 @@ const buildCookieOptions = (request: NextRequest, parsed: Record<string, string 
   httpOnly: true,
 });
 
-const resolveCookieDomain = (_request: NextRequest, useSecure: boolean) => {
+const resolveCookieDomain = (request: NextRequest, useSecure: boolean) => {
   if (!useSecure) {
     return undefined;
   }
+  const host = request.nextUrl.hostname;
 
-  const envDomain = process.env.AUTH_COOKIE_DOMAIN?.trim();
-  if (!envDomain) {
+  if (host === 'localhost') {
     return undefined;
   }
 
-  return envDomain;
+  // This will handle vercel domains like `*.vercel.app` and custom domains
+  const parts = host.split('.');
+  if (parts.length > 2) {
+    // Handles subdomains like `my-app.vercel.app` by returning `.vercel.app`
+    // or `www.custom.com` by returning `.custom.com`
+    return `.${parts.slice(-2).join('.')}`;
+  }
+  // Handles root domains like `custom.com`
+  return host;
 };
 
 export const storeAuthCookies = async (
