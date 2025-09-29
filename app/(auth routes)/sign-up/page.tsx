@@ -47,10 +47,13 @@ const SignUpPage = () => {
       const user = await register(payload);
       setUser(user);
 
+      // Wait a bit for cookies to be set
+      await new Promise(resolve => setTimeout(resolve, 100));
+
       const redirectTarget = searchParams?.get('redirect');
       const destination =
         redirectTarget && redirectTarget.startsWith('/') ? redirectTarget : '/profile';
-      router.replace(destination);
+      router.push(destination);
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         const axiosError = error as AxiosError<{

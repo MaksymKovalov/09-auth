@@ -4,83 +4,89 @@ import type { NextRequest } from 'next/server';
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip middleware for static files and API routes
+  // Skip middleware for API routes, static files, and Next.js internals
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
     pathname.startsWith('/assets') ||
     pathname === '/favicon.ico' ||
-    pathname === '/sitemap.xml' ||
-    pathname === '/robots.txt'
+    pathname === '/robots.txt' ||
+    pathname === '/'
   ) {
     return NextResponse.next();
   }
 
-  // Check for auth tokens
-  const hasAccessToken = request.cookies.has('accessToken');
-  const hasRefreshToken = request.cookies.has('refreshToken');
+  const accessToken = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
 
-  // Define route types
-  const isAuthRoute = pathname === '/sign-in' || pathname === '/sign-up';
-  const isProtectedRoute = pathname.startsWith('/profile') || pathname.startsWith('/notes');
+  const publicOnlyRoutes = ['/sign-in', '/sign-up'];
+  const protectedRoutes = ['/profile', '/notes'];
 
-  console.log('Middleware:', {
-    pathname,
-    hasAccessToken,
-    hasRefreshToken,
-    isAuthRoute,
-    isProtectedRoute
-  });
+  const isPublicOnlyRoute = publicOnlyRoutes.includes(pathname);
+  const isProtectedRoute = protectedRoutes.some(route =>
+    pathname === route || pathname.startsWith(`${route}/`)
+  );
 
-  // If user has valid token and tries to access auth pages, redirect to profile
-  if (hasAccessToken && isAuthRoute) {
-    console.log('Redirecting authenticated user from auth page to /profile');
+  // If not a special route, allow access
+  if (!isPublicOnlyRoute && !isProtectedRoute) {
+    return NextResponse.next();
+  }
+
+  // Check if user has valid session
+  const hasValidSession = !!accessToken;
+
+  // Redirect authenticated users away from auth pages
+  if (hasValidSession && isPublicOnlyRoute) {
     return NextResponse.redirect(new URL('/profile', request.url));
   }
 
-  // If user doesn't have token and tries to access protected pages, redirect to sign-in
-  if (!hasAccessToken && !hasRefreshToken && isProtectedRoute) {
-    console.log('Redirecting unauthenticated user to /sign-in');
-    const signInUrl = new URL('/sign-in', request.url);
-    signInUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(signInUrl);
-  }
+  // Redirect unauthenticated users to sign-in from protected pages
+  if (!hasValidSession && isProtectedRoute) {
+    // If user has refresh token, try to refresh session
+    if (refreshToken) {
+      try {
+        const sessionRes = await fetch(new URL('/api/auth/session', request.url), {
+          method: 'GET',
+          headers: {
+            'Cookie': `refreshToken=${refreshToken}`,
+          },
+        });
 
-  // If user has only refresh token, try to refresh session
-  if (!hasAccessToken && hasRefreshToken && isProtectedRoute) {
-    try {
-      const sessionUrl = new URL('/api/auth/session', request.url);
-      const response = await fetch(sessionUrl, {
-        headers: {
-          cookie: request.headers.get('cookie') || '',
-        },
-      });
+        // If session refresh successful, continue
+        if (sessionRes.ok) {
+          const data = await sessionRes.json();
+          if (data && data.email) {
+            // Session refreshed, allow access
+            const response = NextResponse.next();
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.success) {
-          console.log('Session refreshed successfully');
-          // Continue with the request
-          return NextResponse.next();
+            // Copy new cookies from session response
+            const setCookieHeader = sessionRes.headers.get('set-cookie');
+            if (setCookieHeader) {
+              response.headers.set('set-cookie', setCookieHeader);
+            }
+
+            return response;
+          }
         }
+      } catch (error) {
+        console.error('Session refresh failed:', error);
       }
-    } catch (error) {
-      console.error('Failed to refresh session:', error);
     }
 
-    // If refresh failed, redirect to sign-in
-    console.log('Session refresh failed, redirecting to /sign-in');
-    const signInUrl = new URL('/sign-in', request.url);
-    signInUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(signInUrl);
+    // No valid session, redirect to sign-in
+    const url = new URL('/sign-in', request.url);
+    url.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(url);
   }
 
-  // Allow the request to continue
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/sign-in',
+    '/sign-up',
+    '/profile/:path*',
+    '/notes/:path*',
   ],
 };
