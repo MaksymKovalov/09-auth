@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { isAxiosError, type AxiosError } from 'axios';
 import { login } from '@/lib/api/clientApi';
 import { useAuthStore, type AuthState } from '@/lib/store/authStore';
@@ -11,6 +11,7 @@ import css from './page.module.css';
 const isValidEmail = (value: string) => /.+@.+\..+/.test(value);
 
 const SignInPage = () => {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const setUser = useAuthStore((state: AuthState) => state.setUser);
   const [error, setError] = useState<string | null>(null);
@@ -46,15 +47,20 @@ const SignInPage = () => {
       const user = await login(payload);
       setUser(user);
 
-      // Wait for cookies to be set (longer delay for Vercel)
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait for cookies to be set
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       const redirectTarget = searchParams?.get('redirect');
       const destination =
         redirectTarget && redirectTarget.startsWith('/') ? redirectTarget : '/profile';
 
-      // Use window.location for hard redirect (ensures cookies are set)
-      window.location.href = destination;
+      // Use router.push for navigation
+      router.push(destination);
+
+      // Force reload after a short delay to ensure cookies are propagated
+      setTimeout(() => {
+        router.refresh();
+      }, 200);
     } catch (error: unknown) {
       if (isAxiosError(error)) {
         const axiosError = error as AxiosError<{

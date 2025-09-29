@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server';
 import { ResponseCookies, RequestCookies } from 'next/dist/server/web/spec-extension/cookies';
 
 // Функція для копіювання кукі з response в request
-function applySetCookie(req: NextRequest, res: NextResponse): NextResponse {
+function applySetCookie(req: NextRequest, res: NextResponse): void {
   // Парсимо кукі з response
   const setCookies = new ResponseCookies(res.headers);
 
@@ -16,23 +16,19 @@ function applySetCookie(req: NextRequest, res: NextResponse): NextResponse {
     newReqCookies.set(cookie);
   });
 
-  // Створюємо новий NextResponse з оновленими заголовками
-  const finalResponse = NextResponse.next({
+  // Створюємо dummy response з оновленими заголовками
+  const dummyRes = NextResponse.next({
     request: {
       headers: newReqHeaders,
     },
   });
 
-  // Копіюємо всі заголовки з оригінального response
-  res.headers.forEach((value, key) => {
-    if (key === 'x-middleware-next' || key === 'x-middleware-rewrite') {
-      // Пропускаємо внутрішні заголовки Next.js
-      return;
+  // Оновлюємо заголовки оригінального response
+  dummyRes.headers.forEach((value, key) => {
+    if (key === 'x-middleware-override-headers' || key.startsWith('x-middleware-request-')) {
+      res.headers.set(key, value);
     }
-    finalResponse.headers.set(key, value);
   });
-
-  return finalResponse;
 }
 
 export function middleware(request: NextRequest) {
@@ -56,6 +52,16 @@ export function middleware(request: NextRequest) {
   const accessToken = cookies.get('accessToken');
   const refreshToken = cookies.get('refreshToken');
 
+  // Логування для діагностики на Vercel
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Middleware:', {
+      path,
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken,
+      cookieHeader: request.headers.get('cookie'),
+    });
+  }
+
   // Користувач авторизований якщо є хоча б один токен
   const isAuthenticated = !!(accessToken || refreshToken);
 
@@ -76,13 +82,13 @@ export function middleware(request: NextRequest) {
   }
 
   if (isAuthenticated && isAuthPage) {
-    // Авторизований на сторінці логіну/реєстрації -> використовуємо rewrite замість redirect
+    // Авторизований на сторінці логіну/реєстрації -> на профіль
     const url = request.nextUrl.clone();
     url.pathname = '/profile';
-    const rewriteResponse = NextResponse.rewrite(url);
+    const redirectResponse = NextResponse.redirect(url);
     // Вимикаємо кешування middleware для Vercel
-    rewriteResponse.headers.set('x-middleware-cache', 'no-cache');
-    return rewriteResponse;
+    redirectResponse.headers.set('x-middleware-cache', 'no-cache');
+    return redirectResponse;
   }
 
   const response = NextResponse.next();
@@ -90,7 +96,8 @@ export function middleware(request: NextRequest) {
   response.headers.set('x-middleware-cache', 'no-cache');
 
   // Застосовуємо кукі з response до request для Vercel
-  return applySetCookie(request, response);
+  applySetCookie(request, response);
+  return response;
 }
 
 // Конфігурація для Vercel
