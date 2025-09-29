@@ -1,27 +1,56 @@
+import { cookies } from 'next/headers';
 import type { NextRequest, NextResponse } from 'next/server';
-
-export function forwardSetCookies(
-  response: NextResponse,
-  setCookieHeader: string | string[] | undefined,
-): void {
-  if (!setCookieHeader) {
-    return;
-  }
-
-  const cookies = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
-
-  cookies.forEach((cookie) => {
-    response.headers.append('set-cookie', cookie);
-  });
-}
+import { parse } from 'cookie';
 
 const resolveIsSecure = (request: NextRequest) => {
   const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol;
-  return proto === 'https' || request.nextUrl.protocol === 'https:';
+  return proto === 'https' || proto === 'https:';
 };
 
-export function clearAuthCookies(response: NextResponse, request: NextRequest): void {
+export const storeAuthCookies = async (
+  request: NextRequest,
+  setCookieHeader: string | string[] | undefined,
+): Promise<boolean> => {
+  if (!setCookieHeader) {
+    return false;
+  }
+
+  const cookieArray = Array.isArray(setCookieHeader) ? setCookieHeader : [setCookieHeader];
+  const cookieStore = await cookies();
   const secure = resolveIsSecure(request);
+
+  let stored = false;
+
+  cookieArray.forEach((cookieStr) => {
+    const parsed = parse(cookieStr);
+    const options = {
+      path: parsed.Path ?? '/',
+      expires: parsed.Expires ? new Date(parsed.Expires) : undefined,
+      maxAge: parsed['Max-Age'] ? Number(parsed['Max-Age']) : undefined,
+      httpOnly: true as const,
+      sameSite: 'none' as const,
+      secure,
+    };
+
+    if (parsed.accessToken) {
+      cookieStore.set('accessToken', parsed.accessToken, options);
+      stored = true;
+    }
+
+    if (parsed.refreshToken) {
+      cookieStore.set('refreshToken', parsed.refreshToken, options);
+      stored = true;
+    }
+  });
+
+  return stored;
+};
+
+export const clearAuthCookies = async (response: NextResponse, request: NextRequest) => {
+  const cookieStore = await cookies();
+  const secure = resolveIsSecure(request);
+  cookieStore.delete('accessToken');
+  cookieStore.delete('refreshToken');
 
   response.cookies.set('accessToken', '', {
     path: '/',
@@ -30,7 +59,6 @@ export function clearAuthCookies(response: NextResponse, request: NextRequest): 
     secure,
     maxAge: 0,
   });
-
   response.cookies.set('refreshToken', '', {
     path: '/',
     httpOnly: true,
@@ -38,13 +66,10 @@ export function clearAuthCookies(response: NextResponse, request: NextRequest): 
     secure,
     maxAge: 0,
   });
-}
+};
 
-export function logErrorResponse(errorObj: unknown): void {
-  const green = '\x1b[32m';
-  const yellow = '\x1b[33m';
-  const reset = '\x1b[0m';
-
-  console.log(`${green}> ${yellow}Error Response Data:${reset}`);
-  console.dir(errorObj, { depth: null, colors: true });
-}
+export const logErrorResponse = (errorObj: unknown) => {
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('[api:error]', errorObj);
+  }
+};

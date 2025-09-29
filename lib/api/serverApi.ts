@@ -12,20 +12,12 @@ import {
 import type { CreateNoteRequest } from '@/types/note';
 import type { UpdateUserRequest } from '@/types/auth';
 import type { User } from '@/types/user';
-import { debugCookies, isAuthDebugEnabled, logAuthDebug } from '@/lib/utils/authDebug';
 
 const mergeConfigs = async (config?: AxiosRequestConfig): Promise<AxiosRequestConfig> => {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore.toString();
 
   const baseHeaders = cookieHeader ? { Cookie: cookieHeader } : undefined;
-
-  if (isAuthDebugEnabled) {
-    logAuthDebug('serverApi:mergeConfigs', {
-      hasCookieHeader: Boolean(cookieHeader),
-      cookieDebug: cookieHeader ? debugCookies(cookieHeader) : 'none',
-    });
-  }
 
   return {
     ...config,
@@ -57,19 +49,8 @@ export const getSessionServer = async () =>
 export const getCurrentUserServer = async () => {
   try {
     const response = await api.get<User>('/users/me', await mergeConfigs());
-    if (isAuthDebugEnabled) {
-      logAuthDebug('serverApi:getCurrentUser:success', {
-        status: response.status,
-        email: response.data.email,
-      });
-    }
     return response.data;
-  } catch (error) {
-    if (isAuthDebugEnabled) {
-      logAuthDebug('serverApi:getCurrentUser:error', {
-        message: (error as Error).message,
-      });
-    }
+  } catch {
     return null;
   }
 };
