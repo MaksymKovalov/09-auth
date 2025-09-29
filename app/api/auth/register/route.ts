@@ -34,8 +34,8 @@ export async function POST(req: NextRequest) {
     if (isAxiosError(error)) {
       logErrorResponse(error.response?.data);
       return NextResponse.json(
-        { error: error.message, response: error.response?.data },
-        { status: error.status }
+        error.response?.data ?? { message: error.message },
+        { status: error.response?.status ?? 500 }
       );
     }
     logErrorResponse({ message: (error as Error).message });

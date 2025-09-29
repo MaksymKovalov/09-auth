@@ -53,12 +53,36 @@ const SignUpPage = () => {
       router.replace(destination);
     } catch (error: unknown) {
       if (isAxiosError(error)) {
-        const axiosError = error as AxiosError<{ message?: string; error?: string }>;
+        const axiosError = error as AxiosError<{
+          message?: string;
+          error?: string;
+          validation?: { body?: { message?: string } };
+        }>;
         const responseData = axiosError.response?.data;
+
         if (axiosError.response?.status === 400) {
-          setError('Такий акаунт вже існує або дані некоректні. Перевірте їх, будь ласка.');
+          const validationMessage = responseData?.validation?.body?.message;
+          if (validationMessage) {
+            setError(validationMessage);
+            return;
+          }
+          const conflictMessage =
+            responseData?.message ||
+            responseData?.error ||
+            'Такий акаунт вже існує або дані некоректні. Перевірте їх, будь ласка.';
+          setError(conflictMessage);
           return;
         }
+
+        if (axiosError.response?.status === 409) {
+          const conflictMessage =
+            responseData?.message ||
+            responseData?.error ||
+            'Користувач з таким email вже існує. Спробуйте увійти.';
+          setError(conflictMessage);
+          return;
+        }
+
         const message =
           responseData?.message ||
           responseData?.error ||

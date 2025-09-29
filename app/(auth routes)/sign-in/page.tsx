@@ -53,9 +53,16 @@ const SignInPage = () => {
       router.replace(destination);
     } catch (error: unknown) {
       if (isAxiosError(error)) {
-        const axiosError = error as AxiosError<{ message?: string; error?: string }>;
+        const axiosError = error as AxiosError<{
+          message?: string;
+          error?: string;
+          validation?: { body?: { message?: string } };
+        }>;
+        const responseData = axiosError.response?.data;
+
         if (axiosError.response?.status === 400) {
-          setError('Перевірте email та пароль і спробуйте ще раз.');
+          const validationMessage = responseData?.validation?.body?.message;
+          setError(validationMessage ?? 'Перевірте email та пароль і спробуйте ще раз.');
           return;
         }
 
@@ -64,7 +71,6 @@ const SignInPage = () => {
           return;
         }
 
-        const responseData = axiosError.response?.data;
         const message =
           responseData?.message ||
           responseData?.error ||

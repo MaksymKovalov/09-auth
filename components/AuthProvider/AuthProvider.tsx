@@ -28,12 +28,19 @@ const AuthProviderInner = ({ children }: AuthProviderProps) => {
   const searchParams = useSearchParams();
   const setUser = useAuthStore((state: AuthState) => state.setUser);
   const clearIsAuthenticated = useAuthStore((state: AuthState) => state.clearIsAuthenticated);
+  const isAuthenticated = useAuthStore((state: AuthState) => state.isAuthenticated);
   const redirectTargetRef = useRef<string | null>(null);
 
   const searchParamsString = searchParams?.toString();
   const redirectParam = searchParams?.get('redirect') ?? null;
 
   useEffect(() => {
+    redirectTargetRef.current = sanitizeRedirectTarget(redirectParam);
+
+    if (isAuthenticated && !isPublicOnlyRoute(pathname)) {
+      return;
+    }
+
     let ignore = false;
 
     const checkAuth = async () => {
@@ -58,9 +65,13 @@ const AuthProviderInner = ({ children }: AuthProviderProps) => {
           return;
         }
 
-  if (ignore) return;
+        if (ignore) return;
 
-  setUser(sessionUser);
+        const existingUser = useAuthStore.getState().user;
+
+        if (!existingUser || existingUser.email !== sessionUser.email) {
+          setUser(sessionUser);
+        }
 
         if (isPublicOnlyRoute(pathname)) {
           const target = sanitizeRedirectTarget(redirectTargetRef.current) ?? '/profile';
@@ -77,13 +88,12 @@ const AuthProviderInner = ({ children }: AuthProviderProps) => {
       }
     };
 
-    redirectTargetRef.current = sanitizeRedirectTarget(redirectParam);
     checkAuth();
 
     return () => {
       ignore = true;
     };
-  }, [pathname, redirectParam, searchParamsString, router, setUser, clearIsAuthenticated]);
+  }, [pathname, redirectParam, searchParamsString, router, setUser, clearIsAuthenticated, isAuthenticated]);
 
   return children;
 };
