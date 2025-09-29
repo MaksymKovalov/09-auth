@@ -73,16 +73,15 @@ export const storeAuthCookies = async (
 
     if (parsed.accessToken) {
       result.push({ name: 'accessToken', value: parsed.accessToken, options });
-      logAuthDebug('cookies:set', {
+      logAuthDebug('cookies:parsed', {
         name: 'accessToken',
         options,
       });
     }
 
     if (parsed.refreshToken) {
-      cookieStore.set('refreshToken', parsed.refreshToken, options);
       result.push({ name: 'refreshToken', value: parsed.refreshToken, options });
-      logAuthDebug('cookies:set', {
+      logAuthDebug('cookies:parsed', {
         name: 'refreshToken',
         options,
       });
