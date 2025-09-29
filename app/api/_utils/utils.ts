@@ -7,7 +7,7 @@ const resolveIsSecure = (request: NextRequest) => {
   return proto === 'https' || proto === 'https:';
 };
 
-const resolveSameSite = (secure: boolean): 'lax' | 'strict' | 'none' => 'lax';
+const resolveSameSite = (): 'lax' | 'strict' | 'none' => 'lax';
 
 type CookieOptions = {
   path?: string;
@@ -50,7 +50,7 @@ export const storeAuthCookies = async (
     const options = {
       ...baseOptions,
       secure,
-      sameSite: resolveSameSite(secure),
+      sameSite: resolveSameSite(),
     } satisfies CookieOptions;
 
     if (parsed.accessToken) {
@@ -70,7 +70,7 @@ export const storeAuthCookies = async (
 export const clearAuthCookies = async (response: NextResponse, request: NextRequest) => {
   const cookieStore = await cookies();
   const secure = resolveIsSecure(request);
-  const sameSite = resolveSameSite(secure);
+  const sameSite = resolveSameSite();
   cookieStore.delete('accessToken');
   cookieStore.delete('refreshToken');
 
