@@ -10,8 +10,8 @@ interface AuthProviderProps {
 }
 
 const AuthProvider = ({ children }: AuthProviderProps) => {
-  const pathname = usePathname();
   const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
   const setUser = useAuthStore((state: AuthState) => state.setUser);
   const clearIsAuthenticated = useAuthStore((state: AuthState) => state.clearIsAuthenticated);
 
@@ -37,7 +37,7 @@ const AuthProvider = ({ children }: AuthProviderProps) => {
     };
 
     checkSession();
-  }, [pathname, setUser, clearIsAuthenticated]);
+  }, [setUser, clearIsAuthenticated]);
 
   // Показуємо лоадер тільки на приватних сторінках під час завантаження
   if (isLoading && isPrivateRoute) {
