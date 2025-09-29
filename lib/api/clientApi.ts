@@ -1,5 +1,5 @@
 import type { AxiosRequestConfig } from 'axios';
-import { api } from './api';
+import { nextServer } from './api';
 import type { Note, CreateNoteRequest } from '@/types/note';
 import type { AuthCredentials, UpdateUserRequest } from '@/types/auth';
 import type { User } from '@/types/user';
@@ -32,7 +32,7 @@ export const fetchNotesRequest = async (
   params?: FetchNotesParams,
   config?: AxiosRequestConfig,
 ) => {
-  const response = await api.get<FetchNotesResponse>('/notes', {
+  const response = await nextServer.get<FetchNotesResponse>('/notes', {
     params: buildNotesParams(params),
     ...config,
   });
@@ -46,7 +46,7 @@ export const fetchNoteByIdRequest = async (
   id: string,
   config?: AxiosRequestConfig,
 ) => {
-  const response = await api.get<Note>(`/notes/${id}`, {
+  const response = await nextServer.get<Note>(`/notes/${id}`, {
     ...config,
   });
 
@@ -59,7 +59,7 @@ export const createNoteRequest = async (
   payload: CreateNoteRequest,
   config?: AxiosRequestConfig,
 ) => {
-  const response = await api.post<Note>('/notes', payload, {
+  const response = await nextServer.post<Note>('/notes', payload, {
     ...config,
   });
 
@@ -73,7 +73,7 @@ export const updateNoteRequest = async (
   payload: CreateNoteRequest,
   config?: AxiosRequestConfig,
 ) => {
-  const response = await api.patch<Note>(`/notes/${id}`, payload, {
+  const response = await nextServer.patch<Note>(`/notes/${id}`, payload, {
     ...config,
   });
 
@@ -84,7 +84,7 @@ export const updateNote = async (id: string, payload: CreateNoteRequest) =>
   updateNoteRequest(id, payload);
 
 export const deleteNoteRequest = async (id: string, config?: AxiosRequestConfig) => {
-  const response = await api.delete<Note>(`/notes/${id}`, {
+  const response = await nextServer.delete<Note>(`/notes/${id}`, {
     ...config,
   });
 
@@ -94,23 +94,23 @@ export const deleteNoteRequest = async (id: string, config?: AxiosRequestConfig)
 export const deleteNote = async (id: string) => deleteNoteRequest(id);
 
 export const login = async (credentials: AuthCredentials) => {
-  const response = await api.post<User>('/auth/login', credentials);
+  const response = await nextServer.post<User>('/auth/login', credentials);
 
   return response.data;
 };
 
 export const register = async (credentials: AuthCredentials) => {
-  const response = await api.post<User>('/auth/register', credentials);
+  const response = await nextServer.post<User>('/auth/register', credentials);
 
   return response.data;
 };
 
 export const logout = async () => {
-  await api.post('/auth/logout');
+  await nextServer.post('/auth/logout');
 };
 
 export const getSession = async () => {
-  const response = await api.get<User | null>('/auth/session');
+  const response = await nextServer.get<User | null>('/auth/session');
 
   if (!response.data) {
     return null;
@@ -120,13 +120,13 @@ export const getSession = async () => {
 };
 
 export const getCurrentUser = async () => {
-  const response = await api.get<User>('/users/me');
+  const response = await nextServer.get<User>('/users/me');
 
   return response.data;
 };
 
 export const updateUser = async (payload: UpdateUserRequest) => {
-  const response = await api.patch<User>('/users/me', payload);
+  const response = await nextServer.patch<User>('/users/me', payload);
 
   return response.data;
 };
