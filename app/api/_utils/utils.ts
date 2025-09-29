@@ -49,7 +49,7 @@ export const storeAuthCookies = async (
     const baseOptions = buildCookieOptions(request, parsed);
     const options = {
       ...baseOptions,
-      secure,
+      secure: process.env.NODE_ENV === 'production' ? secure : false, // Умовне secure для production
       sameSite: resolveSameSite(),
     } satisfies CookieOptions;
 
@@ -78,14 +78,14 @@ export const clearAuthCookies = async (response: NextResponse, request: NextRequ
     path: '/',
     httpOnly: true,
     sameSite,
-    secure,
+    secure: process.env.NODE_ENV === 'production' ? secure : false,
     maxAge: 0,
   });
   response.cookies.set('refreshToken', '', {
     path: '/',
     httpOnly: true,
     sameSite,
-    secure,
+    secure: process.env.NODE_ENV === 'production' ? secure : false,
     maxAge: 0,
   });
 };
