@@ -7,7 +7,7 @@ const resolveIsSecure = (request: NextRequest) => {
   return proto === 'https' || proto === 'https:';
 };
 
-const resolveSameSite = (secure: boolean): 'lax' | 'strict' | 'none' => (secure ? 'none' : 'lax');
+const resolveSameSite = (): 'lax' | 'strict' | 'none' => 'lax';
 
 type CookieOptions = {
   path?: string;
@@ -66,7 +66,7 @@ export const storeAuthCookies = async (
     const options = {
       ...baseOptions,
       secure: useSecure,
-      sameSite: resolveSameSite(useSecure),
+      sameSite: resolveSameSite(),
       ...(domain ? { domain } : {}),
     } satisfies CookieOptions;
 
@@ -88,7 +88,7 @@ export const clearAuthCookies = async (response: NextResponse, request: NextRequ
   const cookieStore = await cookies();
   const secure = resolveIsSecure(request);
   const useSecure = process.env.NODE_ENV === 'production' ? secure : false;
-  const sameSite = resolveSameSite(useSecure);
+  const sameSite = resolveSameSite();
   const domain = resolveCookieDomain(request, useSecure);
   cookieStore.delete('accessToken');
   cookieStore.delete('refreshToken');
