@@ -35,8 +35,35 @@ const appendCookies = (response: NextResponse, cookies: string[]) => {
   });
 };
 
+const mergeCookieHeader = (existingCookie: string, refreshedCookies: string[]): string => {
+  const cookieMap = new Map<string, string>();
+
+  const registerCookie = (cookiePair: string) => {
+    const [name, ...rest] = cookiePair.trim().split('=');
+    if (name && rest.length) {
+      cookieMap.set(name, rest.join('='));
+    }
+  };
+
+  existingCookie
+    .split(';')
+    .map((pair) => pair.trim())
+    .filter(Boolean)
+    .forEach(registerCookie);
+
+  refreshedCookies.forEach((cookieStr) => {
+    const [pair] = cookieStr.split(';');
+    registerCookie(pair);
+  });
+
+  return Array.from(cookieMap.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+};
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const requestHeaders = new Headers(request.headers);
 
   if (
     pathname.startsWith('/_next') ||
@@ -52,6 +79,7 @@ export async function middleware(request: NextRequest) {
   let hasAccessToken = request.cookies.has('accessToken');
   const hasRefreshToken = request.cookies.has('refreshToken');
   let refreshedCookies: string[] = [];
+  let refreshedCookieHeader: string | null = null;
 
   if (!hasAccessToken && hasRefreshToken) {
     try {
@@ -66,11 +94,19 @@ export async function middleware(request: NextRequest) {
         const sessionData = await sessionResponse.json().catch(() => null);
         if (sessionData) {
           hasAccessToken = true;
-          refreshedCookies = extractSetCookies(sessionResponse.headers);
         }
+        refreshedCookies = extractSetCookies(sessionResponse.headers);
       }
     } catch {
       // Ignore refresh errors and proceed with existing cookies
+    }
+
+    if (refreshedCookies.length) {
+      const existingCookieHeader = request.headers.get('cookie') ?? '';
+      refreshedCookieHeader = mergeCookieHeader(existingCookieHeader, refreshedCookies);
+      if (refreshedCookieHeader) {
+        requestHeaders.set('cookie', refreshedCookieHeader);
+      }
     }
   }
 
@@ -91,7 +127,9 @@ export async function middleware(request: NextRequest) {
     return redirectResponse;
   }
 
-  const response = NextResponse.next();
+  const response = NextResponse.next({
+    request: refreshedCookieHeader ? { headers: requestHeaders } : undefined,
+  });
   appendCookies(response, refreshedCookies);
   return response;
 }
