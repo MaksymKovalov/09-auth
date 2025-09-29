@@ -62,6 +62,26 @@ const removeAuthCookies = (cookieHeader: string): string =>
     .filter((part) => !part.startsWith('accessToken=') && !part.startsWith('refreshToken='))
     .join('; ');
 
+const isSecureRequest = (request: NextRequest) => {
+  const proto = request.headers.get('x-forwarded-proto') ?? request.nextUrl.protocol;
+  return proto === 'https' || proto === 'https:';
+};
+
+const buildClearCookie = (name: string, request: NextRequest) => {
+  const attributes = ['Path=/', 'Max-Age=0', 'HttpOnly', 'SameSite=Lax'];
+
+  if (isSecureRequest(request)) {
+    attributes.push('Secure');
+  }
+
+  const domain = process.env.AUTH_COOKIE_DOMAIN?.trim();
+  if (domain) {
+    attributes.push(`Domain=${domain}`);
+  }
+
+  return `${name}=; ${attributes.join('; ')}`;
+};
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const incomingCookieHeader = request.headers.get('cookie') ?? '';
@@ -103,6 +123,17 @@ export async function middleware(request: NextRequest) {
     hasRefreshToken = parsedState.hasRefreshToken;
   };
 
+  const enqueueClearAuthCookies = () => {
+    responseCookies.push(buildClearCookie('accessToken', request));
+    responseCookies.push(buildClearCookie('refreshToken', request));
+  };
+
+  const clearAuthState = () => {
+    const clearedHeader = removeAuthCookies(cookieHeader);
+    applyUpdatedCookieHeader(clearedHeader);
+    enqueueClearAuthCookies();
+  };
+
   if (hasRefreshToken && (!hasAccessToken || isAuthPage(pathname))) {
     try {
       const sessionResponse = await fetch(new URL('/api/auth/session', request.url), {
@@ -141,15 +172,15 @@ export async function middleware(request: NextRequest) {
             cookerAfterRestore: debugCookies(cookieHeader),
           });
         } else {
-          applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+          clearAuthState();
           logAuthDebug('middleware:session-empty', {});
         }
       } else {
-        applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+        clearAuthState();
         logAuthDebug('middleware:session-failed', { status: sessionResponse.status });
       }
     } catch (error) {
-      applyUpdatedCookieHeader(removeAuthCookies(cookieHeader));
+      clearAuthState();
       logAuthDebug('middleware:session-error', {
         message: error instanceof Error ? error.message : 'unknown-error',
       });
